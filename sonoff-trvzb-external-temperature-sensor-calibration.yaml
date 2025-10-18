@@ -87,6 +87,6 @@ actions:
   - action: number.set_value
     metadata: {}
     data:
-      value: "{{ states(external_temperature_sensor) | float }}"
+      value: "{{ (((states(external_temperature_sensor) | float) * 10) | round(0, 'common')) / 10 }}"
       entity_id: !input trv_external_temperature_input
 mode: single
