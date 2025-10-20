@@ -44,8 +44,7 @@ variables:
   ext_sensor: !input external_temperature_sensor
   trv_devices: !input trv_external_temperature_input
   cluster_id_in: !input cluster_id
-  # Ronde op 1 decimaal, zoals je eerder had
-  ext_temp_value: "{{ states(ext_sensor) | float | round(1) * 100 }}"
+  ext_temp_value: "{{ (states(ext_sensor) |float |round(1) * 100 ) |int }}"
 
 condition:
   - not:
