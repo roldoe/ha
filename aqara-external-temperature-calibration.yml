@@ -1,0 +1,72 @@
+blueprint:
+  domain: automation
+  name: Aqara External Temperature Sensor Calibration
+  description: |
+    ## Aqara External Temperature Sensor Calibration (v1.0.0)
+    This blueprint synchronises the local temperature of one or more Sonoff TRVZBs with an external temperature sensor. Such behaviour might be required when an external temperature sensor more accurately reflects the room temperature compared with the internal temperature sensor in the TRV(s), or when you wish to use a single temperature sensor to control multiple radiators in a single room.
+    The network protocol of the external temperature sensor is irrelevant (it can be Zigbee, WiFi etc.), but the device must broadcast temperature updates at least once within 2 hours to prevent fail-safe mode from activating on the TRV (see below).
+
+    Slightly modded by kvanbiesen to get rid of unkonwn and not available states
+
+  input:
+    external_temperature_sensor:
+      name: External Temperature Sensor
+      description: The entity of the external temperature sensor device that represents the temperature value.
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+
+    trv_external_temperature_input:
+      name: Aqara TRVZB(s)
+      description: The Aqara Zigbee radiator valve to be updated
+       selector:
+        entity:
+          mupltile: true
+          filter:
+            - integration: zha
+              manufacturer: LUMI
+              model: lumi.airrtc.agl001
+
+    cluster_id:
+      name: Cluster ID
+      description: The cluster ID for the radiator valve (default is 64704)
+      default: 64704
+      selector:
+        number:
+          min: 0
+          max: 65535
+          mode: box
+
+triggers:
+  - trigger: state
+    entity_id: !input external_temperature_sensor
+variables:
+  device_id: !input trv_external_temperature_input
+  ieee: '{{ (device_attr(device_id, "identifiers") | selectattr(0, "equalto", "zha") | list | first)[1] }}'
+  external_temperature_sensor: !input external_temperature_sensor
+conditions:
+  - condition: and
+    conditions:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: !input external_temperature_sensor
+            state: unavailable
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: !input external_temperature_sensor
+            state: unknown
+actions:
+  - action: zha.set_zigbee_cluster_attribute
+     data:
+      ieee: '{{ ieee }}'
+      endpoint_id: 1
+      cluster_id: !input cluster_id
+      cluster_type: in
+      attribute: 5010
+      value: "{{ states(external_temperature_sensor) | float | round(1)  }}"
+
+mode: single
