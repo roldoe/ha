@@ -12,9 +12,8 @@ blueprint:
       description: De sensor-entity met de kamertemperatuur.
       selector:
         entity:
-          filter:
-            - domain: sensor
-              device_class: temperature
+          domain: sensor
+          device_class: temperature
 
     trv_external_temperature_input:
       name: Aqara TRVZB(s)
@@ -63,7 +62,7 @@ action:
       for_each: "{{ trv_devices }}"
       sequence:
         - variables:
-            cur_dev_id: "{{ device_id(repeat.item) }}"
+            cur_dev_id: "{{ repeat.item }}"
             # Haal IEEE uit device identifiers (('zha', 'xx:xx:...'))
             cur_ieee: >-
               {{ (device_attr(cur_dev_id, 'identifiers')
