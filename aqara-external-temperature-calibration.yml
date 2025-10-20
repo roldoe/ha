@@ -45,7 +45,7 @@ variables:
   trv_devices: !input trv_external_temperature_input
   cluster_id_in: !input cluster_id
   # Ronde op 1 decimaal, zoals je eerder had
-  ext_temp_value: "{{ states(ext_sensor) | float | round(1) }}"
+  ext_temp_value: "{{ states(ext_sensor) | float | round(1) * 100 }}"
 
 condition:
   - not:
@@ -73,7 +73,8 @@ action:
             endpoint_id: 1
             cluster_id: "{{ cluster_id_in }}"
             cluster_type: in
-            attribute: 5010           # 0x1392 - veelgebruikt attribuut voor externe temperatuur bij Aqara E1
+            attribute: 0x1392
+            manufacturer: 0x115F
             value: "{{ ext_temp_value }}"
 mode: single
 
