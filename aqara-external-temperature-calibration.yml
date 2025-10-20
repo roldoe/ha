@@ -1,17 +1,15 @@
 blueprint:
-  domain: automation
   name: Aqara External Temperature Sensor Calibration
+  domain: automation
   description: |
     ## Aqara External Temperature Sensor Calibration (v1.0.0)
-    This blueprint synchronises the local temperature of one or more Sonoff TRVZBs with an external temperature sensor. Such behaviour might be required when an external temperature sensor more accurately reflects the room temperature compared with the internal temperature sensor in the TRV(s), or when you wish to use a single temperature sensor to control multiple radiators in a single room.
-    The network protocol of the external temperature sensor is irrelevant (it can be Zigbee, WiFi etc.), but the device must broadcast temperature updates at least once within 2 hours to prevent fail-safe mode from activating on the TRV (see below).
-
-    Slightly modded by kvanbiesen to get rid of unkonwn and not available states
+    Synchroniseert de lokale temperatuur van één of meer Aqara TRV E1 (lumi.airrtc.agl001) via ZHA
+    met een externe temperatuursensor. (Slightly modded to ignore unknown/unavailable states.)
 
   input:
     external_temperature_sensor:
       name: External Temperature Sensor
-      description: The entity of the external temperature sensor device that represents the temperature value.
+      description: De sensor-entity met de kamertemperatuur.
       selector:
         entity:
           filter:
@@ -20,10 +18,10 @@ blueprint:
 
     trv_external_temperature_input:
       name: Aqara TRVZB(s)
-      description: The Aqara Zigbee radiator valve to be updated
-       selector:
+      description: De Aqara radiator-thermostaat(ten) (ZHA, lumi.airrtc.agl001) die je wilt updaten.
+      selector:
         entity:
-          mupltile: true
+          multiple: true
           filter:
             - integration: zha
               manufacturer: LUMI
@@ -31,7 +29,7 @@ blueprint:
 
     cluster_id:
       name: Cluster ID
-      description: The cluster ID for the radiator valve (default is 64704)
+      description: Cluster ID van de TRV (default 64704 voor Aqara E1).
       default: 64704
       selector:
         number:
@@ -39,34 +37,44 @@ blueprint:
           max: 65535
           mode: box
 
-triggers:
-  - trigger: state
+trigger:
+  - platform: state
     entity_id: !input external_temperature_sensor
-variables:
-  device_id: !input trv_external_temperature_input
-  ieee: '{{ (device_attr(device_id, "identifiers") | selectattr(0, "equalto", "zha") | list | first)[1] }}'
-  external_temperature_sensor: !input external_temperature_sensor
-conditions:
-  - condition: and
-    conditions:
-      - condition: not
-        conditions:
-          - condition: state
-            entity_id: !input external_temperature_sensor
-            state: unavailable
-      - condition: not
-        conditions:
-          - condition: state
-            entity_id: !input external_temperature_sensor
-            state: unknown
-actions:
-  - action: zha.set_zigbee_cluster_attribute
-     data:
-      ieee: '{{ ieee }}'
-      endpoint_id: 1
-      cluster_id: !input cluster_id
-      cluster_type: in
-      attribute: 5010
-      value: "{{ states(external_temperature_sensor) | float | round(1)  }}"
 
+variables:
+  ext_sensor: !input external_temperature_sensor
+  trv_entities: !input trv_external_temperature_input
+  cluster_id_in: !input cluster_id
+  # Ronde op 1 decimaal, zoals je eerder had
+  ext_temp_value: "{{ states(ext_sensor) | float | round(1) }}"
+
+condition:
+  - not:
+      - condition: state
+        entity_id: !input external_temperature_sensor
+        state: 'unavailable'
+  - not:
+      - condition: state
+        entity_id: !input external_temperature_sensor
+        state: 'unknown'
+
+action:
+  - repeat:
+      for_each: "{{ trv_entities }}"
+      sequence:
+        - variables:
+            cur_dev_id: "{{ device_id(repeat.item) }}"
+            # Haal IEEE uit device identifiers (('zha', 'xx:xx:...'))
+            cur_ieee: >-
+              {{ (device_attr(cur_dev_id, 'identifiers')
+                  | selectattr(0, 'equalto', 'zha') | list | first)[1] }}
+        - service: zha.set_zigbee_cluster_attribute
+          data:
+            ieee: "{{ cur_ieee }}"
+            endpoint_id: 1
+            cluster_id: "{{ cluster_id_in }}"
+            cluster_type: in
+            attribute: 5010           # 0x1392 - veelgebruikt attribuut voor externe temperatuur bij Aqara E1
+            value: "{{ ext_temp_value }}"
 mode: single
+
