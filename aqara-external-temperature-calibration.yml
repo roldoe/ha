@@ -67,7 +67,8 @@ action:
             cur_ieee: >-
               {{ (device_attr(cur_dev_id, 'identifiers')
                   | selectattr(0, 'equalto', 'zha') | list | first)[1] }}
-	- service: zha.set_zigbee_cluster_attribute
+
+        - service: zha.set_zigbee_cluster_attribute
           data:
             ieee: "{{ cur_ieee }}"
             endpoint_id: 1
