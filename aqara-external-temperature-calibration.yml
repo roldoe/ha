@@ -3,7 +3,7 @@ blueprint:
   domain: automation
   description: |
     ## Aqara External Temperature Sensor Calibration (v1.0.0)
-    Synchroniseert de lokale temperatuur van één of meer Aqara TRV E1 (lumi.airrtc.agl001) via ZHA
+    Ssynchroniseert de lokale temperatuur van één of meer Aqara TRV E1 (lumi.airrtc.agl001) via ZHA
     met een externe temperatuursensor. (Slightly modded to ignore unknown/unavailable states.)
 
   input:
