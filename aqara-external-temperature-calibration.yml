@@ -69,12 +69,12 @@ action:
                   | selectattr(0, 'equalto', 'zha') | list | first)[1] }}
         - service: zha.set_zigbee_cluster_attribute
           data:
-            ieee: "{{ cur_ieee }}"
+            ieee: '{{ cur_ieee }}'
             endpoint_id: 1
-            cluster_id: "{{ cluster_id_in }}"
+            cluster_id: {{ cluster_id_in }}
             cluster_type: in
-            attribute: 0x1392
-            manufacturer: 0x115F
-            value: "{{ ext_temp_value }}"
+            attribute: 5010
+            value: '{{ ext_temp_value }}'
+
 mode: single
 
