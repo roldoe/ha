@@ -71,7 +71,7 @@ action:
           data:
             ieee: '{{ cur_ieee }}'
             endpoint_id: 1
-            cluster_id: {{ cluster_id_in }}
+            cluster_id: !input cluster_id
             cluster_type: in
             attribute: 5010
             value: '{{ ext_temp_value }}'
