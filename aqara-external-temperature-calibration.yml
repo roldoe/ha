@@ -20,7 +20,7 @@ blueprint:
       name: Aqara TRVZB(s)
       description: De Aqara radiator-thermostaat(ten) (ZHA, lumi.airrtc.agl001) die je wilt updaten.
       selector:
-        entity:
+        device:
           multiple: true
           filter:
             - integration: zha
@@ -43,7 +43,7 @@ trigger:
 
 variables:
   ext_sensor: !input external_temperature_sensor
-  trv_entities: !input trv_external_temperature_input
+  trv_devices: !input trv_external_temperature_input
   cluster_id_in: !input cluster_id
   # Ronde op 1 decimaal, zoals je eerder had
   ext_temp_value: "{{ states(ext_sensor) | float | round(1) }}"
@@ -60,7 +60,7 @@ condition:
 
 action:
   - repeat:
-      for_each: "{{ trv_entities }}"
+      for_each: "{{ trv_devices }}"
       sequence:
         - variables:
             cur_dev_id: "{{ device_id(repeat.item) }}"
