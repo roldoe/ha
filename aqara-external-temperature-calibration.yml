@@ -74,10 +74,11 @@ action:
             cluster_id: "{{ cluster_id_in }}"
             cluster_type: in
             attribute: 0x027E          # 638
+            manufacturer: 0x115F
             value: 1
 
         - delay: 
-            seconds: 3
+            seconds: 1
 
         - service: zha.set_zigbee_cluster_attribute
           data:
@@ -86,7 +87,7 @@ action:
             cluster_id: "{{ cluster_id_in }}"
             cluster_type: in
             attribute: 0x1392
+            manufacturer: 0x115F
             value: "{{ ext_temp_value }}"
 
 mode: single
-
