@@ -1,0 +1,119 @@
+blueprint:
+  domain: automation
+  name: Danfoss Ally – External Temperature (ZHA, throttled: ≤1/30min, ≥1/3h)
+  description: >
+    Schrijft een externe temperatuursensor (°C) door naar één of meerdere Danfoss Ally TRV's
+    via ZHA `zha.set_zigbee_cluster_attribute`. Endpoint-id is vast 1 en de waarde wordt
+    altijd als centigraden (°C × 100) verstuurd.
+    Beperkingen: maximaal 1 keer per 30 minuten, minimaal 1 keer per 3 uur.
+
+  input:
+    external_temperature_sensor:
+      name: Externe temperatuursensor (°C)
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+
+    ally_devices:
+      name: Danfoss Ally TRV devices (ZHA)
+      selector:
+        device:
+          manufacturer: Danfoss
+          entity:
+            domain: climate
+          multiple: true
+
+    cluster_id:
+      name: Cluster ID
+      description: Thermostat cluster (0x0201 = 513 dec)
+      default: 513
+      selector:
+        number:
+          min: 0
+          max: 65535
+          step: 1
+          mode: box
+
+    attribute_id:
+      name: Attribute ID (externe temperatuur)
+      description: Het attribuut waarop de externe temperatuur moet worden geschreven.
+      default: 16448
+      selector:
+        number:
+          min: 0
+          max: 65535
+          step: 1
+          mode:  box
+
+mode: single
+
+variables:
+  external_temperature_sensor: !input external_temperature_sensor
+  devices: !input ally_devices
+  cluster_id: !input cluster_id
+  attribute_id: !input attribute_id
+
+  # Schaal vast: °C -> centigraden (23.45°C -> 2345)
+  ext_temp_scaled: >
+    {% set t = states(external_temperature_sensor) | float(default=0) %}
+    {{ (t * 100) | round(0) | int }}
+
+triggers:
+  # 1) Wanneer de sensor wijzigt (state of attribuut)
+  - trigger: state
+    entity_id: !input external_temperature_sensor
+  # 2) Keep-minimum: ten minste 1× per 3 uur
+  - trigger: time_pattern
+    hours: "/3"
+
+conditions:
+  # Sensor moet bruikbaar zijn
+  - condition: and
+    conditions:
+      - condition: template
+        value_template: "{{ states(external_temperature_sensor) is not none }}"
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: !input external_temperature_sensor
+            state: "unavailable"
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: !input external_temperature_sensor
+            state: "unknown"
+
+  # Rate-limit: maximaal 1× per 30 minuten
+  # Gebruik de 'last_triggered' van deze automation om te bepalen of we al recent hebben gestuurd.
+  - condition: template
+    value_template: >
+      {% set lt = state_attr(this.entity_id, 'last_triggered') %}
+      {% if lt is none %}
+        true
+      {% else %}
+        {{ ( now() - lt ).total_seconds() >= 30*60 }}
+      {% endif %}
+
+actions:
+  - repeat:
+      for_each: !input ally_devices
+      sequence:
+        - variables:
+            ieee_addr: "{{ device_attr(repeat.item, 'ieee') | default('', true) }}"
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ ieee_addr != '' }}"
+              sequence:
+                - service: zha.set_zigbee_cluster_attribute
+                  data:
+                    ieee: "{{ ieee_addr }}"
+                    endpoint_id: 1
+                    cluster_id: "{{ cluster_id | int }}"
+                    cluster_type: "in"
+                    attribute: "{{ attribute_id | int }}"
+                    value: "{{ ext_temp_scaled }}"
+          default: []
+
