@@ -1,6 +1,6 @@
 blueprint:
   domain: automation
-  name: Danfoss Ally – Room Load Mean (ZHA native, clean)
+  name: Danfoss Ally – Room Load Mean (ZHA native)
   description: >
     Berekent elke 15 minuten het gemiddelde van Danfoss Ally load_estimates in dezelfde kamer
     met kwaliteitsfilters (cutoff & versheid) en schrijft dit via de standaard ZHA-service
@@ -38,17 +38,6 @@ blueprint:
           min: 60
           max: 86400
           step: 60
-          mode: slider
-
-    round_decimals:
-      name: Afronding (decimalen)
-      description: Aantal decimalen voor het gemiddelde (gebruik 0 voor integer)
-      default: 0
-      selector:
-        number:
-          min: 0
-          max: 3
-          step: 1
           mode: slider
 
     endpoint_id:
@@ -90,8 +79,6 @@ variables:
   devices: !input ally_devices
   cutoff: !input cutoff
   freshness_s: !input freshness_s
-  round_decimals: !input round_decimals
-  endpoint_id: !input endpoint_id
   cluster_id: !input cluster_id
   attribute_id: !input attribute_id
 
@@ -115,7 +102,7 @@ variables:
       {% endif %}
     {% endfor %}
     {% if valid | length > 0 %}
-      {{ ( (valid | sum) / (valid | length) ) | round(round_decimals) }}
+      {{ ( (valid | sum) / (valid | length) ) | round(0) }}
     {% else %}
       {{ none }}
     {% endif %}
@@ -142,7 +129,7 @@ action:
                 - service: zha.set_zigbee_cluster_attribute
                   data:
                     ieee: "{{ ieee_addr }}"
-                    endpoint_id: "{{ endpoint_id | int }}"
+                    endpoint_id: 1
                     cluster_id: "{{ cluster_id | int }}"
                     cluster_type: "in"
                     attribute: "{{ attribute_id | int }}"
