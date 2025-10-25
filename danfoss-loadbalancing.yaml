@@ -1,0 +1,151 @@
+blueprint:
+  domain: automation
+  name: Danfoss Ally – Room Load Mean (ZHA native, clean)
+  description: >
+    Berekent elke 15 minuten het gemiddelde van Danfoss Ally load_estimates in dezelfde kamer
+    met kwaliteitsfilters (cutoff & versheid) en schrijft dit via de standaard ZHA-service
+    `zha.set_zigbee_cluster_attribute` (Thermostat cluster 0x0201, attribuut 16448)
+    naar alle geselecteerde TRV’s. Ontworpen voor ZHA, zonder MQTT of number-helpers.
+
+  input:
+    ally_devices:
+      name: Danfoss Ally TRV Devices (ZHA)
+      description: Selecteer alle Danfoss Ally TRV-apparaten in dezelfde kamer (ZHA)
+      selector:
+        device:
+          manufacturer: Danfoss
+          entity:
+            domain: climate
+          multiple: true
+
+    cutoff:
+      name: Cutoff (negeer waarden ≤ deze drempel)
+      description: Waarden ≤ cutoff worden genegeerd
+      default: -500
+      selector:
+        number:
+          min: -10000
+          max: 10000
+          step: 1
+          mode: box
+
+    freshness_s:
+      name: Freshness window (seconden)
+      description: Alleen waardes jonger dan dit aantal seconden tellen mee
+      default: 5400
+      selector:
+        number:
+          min: 60
+          max: 86400
+          step: 60
+          mode: slider
+
+    round_decimals:
+      name: Afronding (decimalen)
+      description: Aantal decimalen voor het gemiddelde (gebruik 0 voor integer)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 3
+          step: 1
+          mode: slider
+
+    endpoint_id:
+      name: ZHA endpoint_id
+      description: Meestal 1 voor Danfoss Ally thermostaat
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 16
+          step: 1
+          mode: slider
+
+    cluster_id:
+      name: Cluster ID
+      description: Thermostat cluster (0x0201 = 513 dec)
+      default: 513
+      selector:
+        number:
+          min: 0
+          max: 65535
+          step: 1
+          mode: box
+
+    attribute_id:
+      name: Attribute ID om room mean te schrijven
+      description: Manufacturer-specific attribuut (bij Danfoss meestal 16448)
+      default: 16448
+      selector:
+        number:
+          min: 0
+          max: 65535
+          step: 1
+          mode: box
+
+mode: single
+
+variables:
+  devices: !input ally_devices
+  cutoff: !input cutoff
+  freshness_s: !input freshness_s
+  round_decimals: !input round_decimals
+  endpoint_id: !input endpoint_id
+  cluster_id: !input cluster_id
+  attribute_id: !input attribute_id
+
+  # Vind alle sensoren die eindigen op '_load_estimate' of '_load_estimate_radiator'
+  load_estimate_entities: >
+    {% set ents = devices
+      | map('device_entities') | sum(start=[])
+      | select('match', '.*load_estimate(_radiator)?$')
+      | list %}
+    {{ ents }}
+
+  # Filter waardes op cutoff en versheid; bereken het gemiddelde
+  room_load_mean: >
+    {% set valid = [] %}
+    {% for e in load_estimate_entities %}
+      {% set val = states(e) | float(default=-1e9) %}
+      {% set upd = states[e].last_updated if e in states else None %}
+      {% set age = (as_timestamp(now()) - as_timestamp(upd)) | float(1e9) %}
+      {% if val > cutoff and age < freshness_s %}
+        {% set _ = valid.append(val) %}
+      {% endif %}
+    {% endfor %}
+    {% if valid | length > 0 %}
+      {{ ( (valid | sum) / (valid | length) ) | round(round_decimals) }}
+    {% else %}
+      {{ none }}
+    {% endif %}
+
+trigger:
+  - platform: time_pattern
+    minutes: "/15"
+
+condition:
+  - condition: template
+    value_template: "{{ room_load_mean is not none }}"
+
+action:
+  - repeat:
+      for_each: !input ally_devices
+      sequence:
+        - variables:
+            ieee_addr: "{{ device_attr(repeat.item, 'ieee') | default('', true) }}"
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ ieee_addr != '' }}"
+              sequence:
+                - service: zha.set_zigbee_cluster_attribute
+                  data:
+                    ieee: "{{ ieee_addr }}"
+                    endpoint_id: "{{ endpoint_id | int }}"
+                    cluster_id: "{{ cluster_id | int }}"
+                    cluster_type: "in"
+                    attribute: "{{ attribute_id | int }}"
+                    value: "{{ room_load_mean }}"
+          default: []
+
