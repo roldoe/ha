@@ -82,26 +82,25 @@ variables:
   # Filter waardes op cutoff en versheid; bereken het gemiddelde
   room_load_mean: >
     {% set nowts = as_timestamp(now()) %}
-    {% set vals = [] %}
+    {% set ns = namespace(vals=[]) %}
 
-    {# Neem de State-objecten van de eerder gevonden entiteiten #}
     {% for s in expand(load_estimate_entities) %}
       {% set state_str = s.state %}
-      {% set numeric_str = state_str | replace(',', '.') | regex_replace('[^0-9\.\-]', '') %}
+      {% set numeric_str = state_str | replace(',', '.') | regex_replace('[^0-9\\.-]', '') %}
       {% set val = numeric_str | float(default=none) %}
 
       {% if val is not none %}
-        {% set age_upd = (nowts - as_timestamp(s.last_updated)) | float(1e9) %}
-        {% set age_chg = (nowts - as_timestamp(s.last_changed)) | float(1e9) %}
+        {% set age_upd = nowts - as_timestamp(s.last_updated, 0) %}
+        {% set age_chg = nowts - as_timestamp(s.last_changed, 0) %}
         {% set age = [age_upd, age_chg] | min %}
         {% if val > cutoff and age < freshness_s %}
-          {% set vals = vals + [val] %}
+          {% set ns.vals = ns.vals + [val] %}
         {% endif %}
       {% endif %}
     {% endfor %}
 
-    {% if vals | length > 0 %}
-      {{ ((vals | sum) / (vals | length)) | round(0) }}
+    {% if ns.vals | length > 0 %}
+      {{ ((ns.vals | sum) / (ns.vals | length)) | round(0) }}
     {% else %}
       {{ none }}
     {% endif %}
