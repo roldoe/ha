@@ -119,11 +119,14 @@ action:
       for_each: !input ally_devices
       sequence:
         - variables:
-            ieee_addr: "{{ device_attr(repeat.item, 'ieee') | default('', true) }}"
+            ieee_addr: >-
+              {% set ids = device_attr(repeat.item, 'identifiers') | default([], true) %}
+              {% set zha_ids = ids | selectattr(0, 'eq', 'zha') | map('last') | list %}
+              {{ (zha_ids[0] if (zha_ids | length) > 0 else '') }}
         - choose:
             - conditions:
                 - condition: template
-                  value_template: "{{ ieee_addr != '' }}"
+                  value_template: "{{ ieee_addr | length > 0 }}"
               sequence:
                 - service: zha.set_zigbee_cluster_attribute
                   data:
